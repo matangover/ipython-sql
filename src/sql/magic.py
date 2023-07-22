@@ -11,11 +11,13 @@ from IPython.core.magic import (
 )
 from IPython.core.magic_arguments import argument, magic_arguments, parse_argstring
 from IPython.display import display_javascript
+from IPython.utils.text import FullEvalFormatter
 from sqlalchemy.exc import OperationalError, ProgrammingError, DatabaseError
 
 import sql.connection
 import sql.parse
 import sql.run
+import sql.merge
 
 try:
     from traitlets.config.configurable import Configurable
@@ -147,7 +149,9 @@ class SqlMagic(Magics, Configurable):
 
         """
         # Parse variables (words wrapped in {}) for %%sql magic (for %sql this is done automatically)
-        cell = self.shell.var_expand(cell)
+        # Use FullEvalFormatter instead of the default DollarFormatter to avoid parsing the dollar
+        # variables in SQL.
+        cell = self.shell.var_expand(cell, formatter=FullEvalFormatter())
         line = sql.parse.without_sql_comment(parser=self.execute.parser, line=line)
         args = parse_argstring(self.execute, line)
         if args.connections:
@@ -166,6 +170,12 @@ class SqlMagic(Magics, Configurable):
                 command_text = infile.read() + "\n" + command_text
 
         parsed = sql.parse.parse(command_text, self)
+        if parsed["sql"]:
+            try:
+                parsed["sql"] = sql.merge.merge(parsed["sql"], user_ns)
+            except Exception as e:
+                print(f"Invalid query: {e}")
+                return
 
         connect_str = parsed["connection"]
         if args.section:
