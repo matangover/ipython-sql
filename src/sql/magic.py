@@ -61,11 +61,11 @@ class SqlMagic(Magics, Configurable):
         allow_none=True,
         help="Automatically limit the number of rows displayed (full result set is still stored)",
     )
-    autopandas = Bool(
-        False,
-        config=True,
-        help="Return Pandas DataFrames instead of regular result sets",
-    )
+    # autopandas = Bool(
+    #     False,
+    #     config=True,
+    #     help="Return Pandas DataFrames instead of regular result sets",
+    # )
     column_local_vars = Bool(
         False, config=True, help="Return data into local variables from column names"
     )
@@ -170,12 +170,15 @@ class SqlMagic(Magics, Configurable):
                 command_text = infile.read() + "\n" + command_text
 
         parsed = sql.parse.parse(command_text, self)
+        autolimit_applied = False
         if parsed["sql"]:
             try:
-                parsed["sql"] = sql.merge.merge(parsed["sql"], user_ns)
+                parsed["sql"], autolimit_applied = sql.merge.merge(parsed["sql"], user_ns, self.autolimit)
             except Exception as e:
                 print(f"Invalid query: {e}")
                 return
+        if autolimit_applied:
+            print(f"Autolimit applied: {self.autolimit}")
 
         connect_str = parsed["connection"]
         if args.section:
@@ -232,7 +235,7 @@ class SqlMagic(Magics, Configurable):
                 # Instead of returning values, set variables directly in the
                 # users namespace. Variable names given by column names
 
-                if self.autopandas:
+                if False: # self.autopandas:
                     keys = result.keys()
                 else:
                     keys = result.keys

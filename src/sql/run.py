@@ -104,17 +104,14 @@ class ResultSet(list, ColumnGuesserMixin):
     """
 
     def __init__(self, sqlaproxy, sql, config):
+        self._df = None
         self.keys = sqlaproxy.keys()
         self.sql = sql
         self.config = config
-        self.limit = config.autolimit
         style_name = config.style
         self.style = prettytable.__dict__[style_name.upper()]
         if sqlaproxy.returns_rows:
-            if self.limit:
-                list.__init__(self, sqlaproxy.fetchmany(size=self.limit))
-            else:
-                list.__init__(self, sqlaproxy.fetchall())
+            list.__init__(self, sqlaproxy.fetchall())
             self.field_names = unduplicate_field_names(self.keys)
             self.pretty = PrettyTable(self.field_names, style=self.style)
             # self.pretty.set_style(self.style)
@@ -167,12 +164,16 @@ class ResultSet(list, ColumnGuesserMixin):
         for row in self:
             yield dict(zip(self.keys, row))
 
-    def DataFrame(self):
+    @property
+    def df(self):
         "Returns a Pandas DataFrame instance built from the result set."
-        import pandas as pd
+        # TODO: cache the DataFrame
+        if self._df is not None:
+            return self._df
 
-        frame = pd.DataFrame(self, columns=(self and self.keys) or [])
-        return frame
+        import pandas as pd
+        self._df = pd.DataFrame(self, columns=(self and self.keys) or [])
+        return self._df
 
     def pie(self, key_word_sep=" ", title=None, **kwargs):
         """Generates a pylab pie chart from the result set.
@@ -372,10 +373,10 @@ def run(conn, sql, config, user_namespace):
             if result and config.feedback:
                 print(interpret_rowcount(result.rowcount))
         resultset = ResultSet(result, statement, config)
-        if config.autopandas:
-            return resultset.DataFrame()
-        else:
-            return resultset
+        # if config.autopandas:
+            # return resultset.DataFrame()
+        # else:
+        return resultset
         # returning only last result, intentionally
     else:
         return "Connected: %s" % conn.name
